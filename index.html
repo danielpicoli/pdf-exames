@@ -480,7 +480,8 @@
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          textoCompleto += await obterTextoPaginaOrdenado(page) + "\n";
+          textoCompleto += await obterTextoPaginaOrdenado(page) + "
+";
         }
 
         const normal = extrairExames(textoCompleto);
@@ -531,7 +532,8 @@
             .join(" ")
         );
 
-      return linhas.join("\n");
+      return linhas.join("
+");
     }
 
     function extrairExames(texto) {
