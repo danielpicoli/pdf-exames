@@ -480,9 +480,7 @@
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const strings = content.items.map(item => item.str);
-          textoCompleto += strings.join(" ") + "\n";
+          textoCompleto += await obterTextoPaginaOrdenado(page) + "\n";
         }
 
         const normal = extrairExames(textoCompleto);
@@ -501,6 +499,39 @@
         resultadoMaiusculo.innerText = "Erro ao ler o PDF.";
         console.error(error);
       }
+    }
+
+    async function obterTextoPaginaOrdenado(page) {
+      const content = await page.getTextContent();
+
+      const itens = content.items
+        .filter(item => item.str && item.str.trim() !== "")
+        .map(item => ({
+          texto: item.str.trim(),
+          x: item.transform[4],
+          y: Math.round(item.transform[5])
+        }));
+
+      const linhasMap = new Map();
+
+      itens.forEach(item => {
+        const yProximo = [...linhasMap.keys()].find(y => Math.abs(y - item.y) <= 3);
+        const chave = yProximo !== undefined ? yProximo : item.y;
+
+        if (!linhasMap.has(chave)) linhasMap.set(chave, []);
+        linhasMap.get(chave).push(item);
+      });
+
+      const linhas = [...linhasMap.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([_, itensLinha]) =>
+          itensLinha
+            .sort((a, b) => a.x - b.x)
+            .map(item => item.texto)
+            .join(" ")
+        );
+
+      return linhas.join("\n");
     }
 
     function extrairExames(texto) {
