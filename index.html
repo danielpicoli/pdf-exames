@@ -38,6 +38,10 @@
       margin-bottom: 20px;
     }
 
+    #dropzone:hover {
+      background: #eef6ff;
+    }
+
     .box {
       background: #f8f9fa;
       border: 1px solid #ddd;
@@ -47,6 +51,7 @@
       word-break: break-word;
       font-size: 18px;
       line-height: 1.5;
+      min-height: 30px;
     }
 
     .label {
@@ -75,6 +80,7 @@
       font-size: 13px;
       color: #666;
       margin-top: 20px;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -98,7 +104,8 @@
     <button onclick="copiarTexto('maiusculo')">Copiar caixa alta</button>
 
     <div class="small">
-      O PDF é processado localmente no navegador. Nenhum arquivo é enviado para servidor.
+      O PDF é processado localmente no navegador. Nenhum arquivo é enviado para servidor.<br>
+      Funciona melhor com PDFs que possuem texto selecionável.
     </div>
   </div>
 
@@ -113,32 +120,328 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
+    // Ordem fixa da saída final.
+    // grupo = posição do valor capturado dentro do regex.
+    // decimal = true força uma casa decimal. Ex: 11.8
+    // decimal = false remove casas decimais e separadores de milhar. Ex: 7.280 -> 7280
     const exames = [
-      { abrev: "Hb", regex: /(hemoglobina|hb)\D{0,25}(\d{1,2}(?:[.,]\d+)?)/i, decimal: true },
-      { abrev: "Ht", regex: /(hemat[oó]crito|ht)\D{0,25}(\d{1,2}(?:[.,]\d+)?)/i, decimal: true },
-      { abrev: "Leuco", regex: /(leuc[oó]citos|leuco|wbc)\D{0,35}(\d{1,3}(?:[.,]\d{3})|\d{3,6})/i, decimal: false },
-      { abrev: "Seg", regex: /(neutr[oó]filos|segmentados|seg)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "Bast", regex: /(bastonetes|bast)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "Plq", regex: /(plaquetas|plq|plt)\D{0,35}(\d{1,3}(?:[.,]\d{3})|\d{3,6})/i, decimal: false },
+      // HEMOGRAMA
+      {
+        abrev: "Hb",
+        regex: /(\d{1,2}[.,]\d)\s*g\/dL\s*HEMOGLOBINA/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "Ht",
+        regex: /(\d{1,2}[.,]\d)\s*%\s*HEMAT[ÓO]CRITO/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "Leuco",
+        regex: /LEUC[ÓO]CITOS\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "Bast",
+        regex: /BASTONETES\s*(\d+[.,]?\d*)\s*%/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "Seg",
+        regex: /SEGMENTADOS\s*(\d+[.,]?\d*)\s*%/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "Plq",
+        regex: /Plaquetas:\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
 
-      { abrev: "Na", regex: /(s[oó]dio|na)\D{0,25}(\d{2,3}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "K", regex: /(pot[aá]ssio|k)\D{0,25}(\d{1,2}(?:[.,]\d+)?)/i, decimal: true },
-      { abrev: "Cl", regex: /(cloretos|cloro|cl)\D{0,25}(\d{2,3}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "Mg", regex: /(magn[eé]sio|mg)\D{0,25}(\d{1,2}(?:[.,]\d+)?)/i, decimal: true },
+      // ELETRÓLITOS / BIOQUÍMICA
+      {
+        abrev: "Na",
+        regex: /S[ÓO]DIO[\s\S]*?Resultado:\s*(\d{2,3}(?:[.,]\d+)?)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "K",
+        regex: /POT[ÁA]SSIO[\s\S]*?Resultado:\s*(\d{1,2}(?:[.,]\d+)?)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "Cl",
+        regex: /(CLORETOS|CLORO)[\s\S]*?Resultado:\s*(\d{2,3}(?:[.,]\d+)?)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "Mg",
+        regex: /MAGN[ÉE]SIO[\s\S]*?Resultado:\s*(\d{1,2}(?:[.,]\d+)?)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "Ca",
+        regex: /C[ÁA]LCIO[\s\S]*?Resultado:\s*(\d{1,3}(?:[.,]\d+)?)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "P",
+        regex: /F[ÓO]SFORO[\s\S]*?Resultado:\s*(\d{1,3}(?:[.,]\d+)?)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "U",
+        regex: /UREIA[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "Cr",
+        regex: /CREATININA[\s\S]*?Resultado:\s*(\d+[.,]\d+)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "GLI",
+        regex: /(GLICEMIA|GLICOSE)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "AU",
+        regex: /([ÁA]CIDO [ÚU]RICO)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      },
 
-      { abrev: "U", regex: /(ureia|ur[eé]ia)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "Cr", regex: /(creatinina|creat|cr)\D{0,25}(\d{1,2}(?:[.,]\d+)?)/i, decimal: true },
+      // INFLAMATÓRIOS / INFECCIOSOS
+      {
+        abrev: "PCR",
+        regex: /(PCR|PROTE[ÍI]NA C REATIVA)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      },
+      {
+        abrev: "PCT",
+        regex: /PROCALCITONINA[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "VHS",
+        regex: /(VHS|VELOCIDADE DE HEMOSSEDIMENTA[ÇC][ÃA]O)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
 
-      { abrev: "BT", regex: /(bilirrubina total|bt)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: true },
-      { abrev: "BD", regex: /(bilirrubina direta|bd)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: true },
-      { abrev: "BI", regex: /(bilirrubina indireta|bi)\D{0,25}(\d{1,3}(?:[.,]\d+)?)/i, decimal: true },
+      // HEPÁTICO / BILIAR
+      {
+        abrev: "BT",
+        regex: /Bilirrubina Total\.*:\s*(\d+[.,]\d+)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "BD",
+        regex: /Bilirrubina Direta\.*:\s*(\d+[.,]\d+)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "BI",
+        regex: /Bilirrubina Indireta:\s*(\d+[.,]\d+)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "TGO",
+        regex: /(ASPARTATO AMINOTRANSFERASE|TGO|AST)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "TGP",
+        regex: /(ALANINA AMINOTRANSFERASE|TGP|ALT)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "FAL",
+        regex: /FOSFATASE ALCALINA[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "GGT",
+        regex: /(GAMA GLUTAMIL TRANSFERASE|GAMA GT|GGT|GAMMA GT)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "DHL",
+        regex: /(DESIDROGENASE L[ÁA]TICA|DHL|LDH)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "Alb",
+        regex: /ALBUMINA[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "PT",
+        regex: /PROTE[ÍI]NAS TOTAIS[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: true
+      },
 
-      { abrev: "TGO", regex: /(tgo|ast|transaminase oxalac[eé]tica)\D{0,35}(\d{1,5}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "TGP", regex: /(tgp|alt|transaminase pir[uú]vica)\D{0,35}(\d{1,5}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "FAL", regex: /(fosfatase alcalina|fal)\D{0,35}(\d{1,5}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "GGT", regex: /(gama gt|gama glutamil transferase|ggt|gamma gt)\D{0,35}(\d{1,5}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "DHL", regex: /(desidrogenase l[aá]tica|dhl|ldh)\D{0,35}(\d{1,5}(?:[.,]\d+)?)/i, decimal: false },
-      { abrev: "Troponina", regex: /(troponina)\D{0,35}(\d+(?:[.,]\d+)?)/i, decimal: true }
+      // PANCREÁTICO
+      {
+        abrev: "Amilase",
+        regex: /AMILASE(?: TOTAL)?[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "Lipase",
+        regex: /LIPASE[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
+
+      // CARDÍACOS / TROMBOSE
+      {
+        abrev: "Troponina",
+        regex: /TROPONINA[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "CK",
+        regex: /(CREATINOFOSFOQUINASE|CK TOTAL|CK)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "CKMB",
+        regex: /(CKMB|CK-MB)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      },
+      {
+        abrev: "BNP",
+        regex: /\bBNP\b[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "NTproBNP",
+        regex: /(NT-PROBNP|NT PROBNP|NTproBNP)[\s\S]*?Resultado:\s*([\d.]+)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "DD",
+        regex: /(D[ÍI]MERO-D|D[ÍI]MERO D)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      },
+
+      // GASOMETRIA
+      {
+        abrev: "pH",
+        regex: /\bpH\b\D{0,20}(\d[.,]\d{2,3})/i,
+        grupo: 1,
+        decimalCasas: 2
+      },
+      {
+        abrev: "pCO2",
+        regex: /\bpCO2\b\D{0,20}(-?\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "pO2",
+        regex: /\bpO2\b\D{0,20}(-?\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: false
+      },
+      {
+        abrev: "HCO3",
+        regex: /(HCO3|BICARBONATO)\D{0,20}(-?\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "BE",
+        regex: /(BE|BASE EXCESS|EXCESSO DE BASE)\D{0,20}(-?\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "SatO2",
+        regex: /(SATO2|SATURA[ÇC][ÃA]O\s*O2|SAT\s*O2)\D{0,20}(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "Lactato",
+        regex: /LACTATO[\s\S]*?(?:Resultado:)?\s*(\d+[.,]\d+)/i,
+        grupo: 1,
+        decimal: true
+      },
+
+      // COAGULOGRAMA
+      {
+        abrev: "TP",
+        regex: /(TEMPO DE PROTROMBINA|\bTP\b)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "INR",
+        regex: /(INR|RNI)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      },
+      {
+        abrev: "TTPA",
+        regex: /(TTPA|KTTP|TEMPO DE TROMBOPLASTINA PARCIAL ATIVADA|APTT)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: false
+      },
+      {
+        abrev: "Fib",
+        regex: /FIBRINOG[ÊE]NIO[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: false
+      },
+
+      // ENDÓCRINO
+      {
+        abrev: "TSH",
+        regex: /\bTSH\b[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 1,
+        decimal: true
+      },
+      {
+        abrev: "T4L",
+        regex: /(T4 LIVRE|T4L)[\s\S]*?Resultado:\s*(\d+[.,]?\d*)/i,
+        grupo: 2,
+        decimal: true
+      }
     ];
 
     dropzone.addEventListener("click", () => fileInput.click());
@@ -179,7 +482,7 @@
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           const strings = content.items.map(item => item.str);
-          textoCompleto += strings.join(" ") + " ";
+          textoCompleto += strings.join(" ") + "\n";
         }
 
         const normal = extrairExames(textoCompleto);
@@ -201,30 +504,49 @@
     }
 
     function extrairExames(texto) {
-      texto = texto.replace(/\s+/g, " ");
-
       let resultados = [];
+      let examesEncontrados = new Set();
 
       exames.forEach(exame => {
         const match = texto.match(exame.regex);
 
-        if (match) {
-          let valor = match[2];
+        if (match && !examesEncontrados.has(exame.abrev)) {
+          let valor = match[exame.grupo];
+          valor = formatarValor(valor, exame);
 
-          valor = valor.replace(",", ".");
-          valor = valor.replace(/\.(?=\d{3}$)/, "");
-
-          if (exame.decimal) {
-            valor = parseFloat(valor).toFixed(1);
-          } else {
-            valor = String(parseInt(valor));
+          if (valor !== null && valor !== "NaN") {
+            resultados.push(`${exame.abrev}: ${valor};`);
+            examesEncontrados.add(exame.abrev);
           }
-
-          resultados.push(`${exame.abrev}: ${valor};`);
         }
       });
 
       return resultados.join(" ");
+    }
+
+    function formatarValor(valor, exame) {
+      if (!valor) return null;
+
+      valor = String(valor).trim();
+      valor = valor.replace(",", ".");
+
+      // Remove separador de milhar quando houver número como 2.052, 7.280, 280.000.
+      if (/^\d{1,3}(\.\d{3})+$/.test(valor)) {
+        valor = valor.replace(/\./g, "");
+      }
+
+      let numero = parseFloat(valor);
+      if (isNaN(numero)) return null;
+
+      if (exame.decimalCasas !== undefined) {
+        return numero.toFixed(exame.decimalCasas);
+      }
+
+      if (exame.decimal) {
+        return numero.toFixed(1);
+      }
+
+      return String(Math.round(numero));
     }
 
     function copiarTexto(tipo) {
